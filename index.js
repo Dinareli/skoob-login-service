@@ -1,13 +1,12 @@
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
+const express = require('express');
+const puppeteer = require('puppeteer');
 
-// Função principal que a Vercel irá executar
-module.exports = async (req, res) => {
-  // Apenas permite pedidos POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+const app = express();
+app.use(express.json());
 
+const PORT = process.env.PORT || 10000;
+
+app.post('/api/login', async (req, res) => {
   const { skoob_user, skoob_pass } = req.body;
 
   if (!skoob_user || !skoob_pass) {
@@ -15,16 +14,13 @@ module.exports = async (req, res) => {
   }
 
   let browser = null;
-  console.log("Iniciando o navegador com @sparticuz/chromium...");
+  console.log("Iniciando o navegador Puppeteer no Render...");
 
   try {
-    // Nova configuração para o Puppeteer, usando a biblioteca @sparticuz/chromium
+    // No Render, podemos usar a versão completa do Puppeteer
     browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const page = await browser.newPage();
@@ -77,4 +73,8 @@ module.exports = async (req, res) => {
       console.log("Navegador fechado.");
     }
   }
-};
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor de login a correr na porta ${PORT}`);
+});

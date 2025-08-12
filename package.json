@@ -1,10 +1,13 @@
 {
-  "name": "skoob-login-service",
+  "name": "skoob-login-render",
   "version": "1.0.0",
-  "description": "Um micro-serviço para fazer login no Skoob usando Puppeteer.",
-  "main": "api/login.js",
+  "description": "Micro-serviço para login no Skoob usando Puppeteer no Render",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "@sparticuz/chromium": "119.0.0",
-    "puppeteer-core": "21.9.0"
+    "express": "^4.19.2",
+    "puppeteer": "^22.10.0"
   }
 }
