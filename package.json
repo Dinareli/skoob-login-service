@@ -1,0 +1,10 @@
+{
+  "name": "skoob-login-service",
+  "version": "1.0.0",
+  "description": "Um micro-serviço para fazer login no Skoob usando Puppeteer.",
+  "main": "api/login.js",
+  "dependencies": {
+    "chrome-aws-lambda": "^10.1.0",
+    "puppeteer-core": "^10.1.0"
+  }
+}
