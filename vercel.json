@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/login.js": {
+      "maxDuration": 45
+    }
+  }
+}
