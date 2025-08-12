@@ -4,7 +4,7 @@
   "description": "Um micro-serviço para fazer login no Skoob usando Puppeteer.",
   "main": "api/login.js",
   "dependencies": {
-    "@sparticuz/chromium": "123.0.1",
-    "puppeteer-core": "22.10.0"
+    "@sparticuz/chromium": "119.0.0",
+    "puppeteer-core": "21.9.0"
   }
 }
