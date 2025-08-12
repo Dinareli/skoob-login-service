@@ -1,5 +1,5 @@
+const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
-const chrome = require('chrome-aws-lambda');
 
 // Função principal que a Vercel irá executar
 module.exports = async (req, res) => {
@@ -15,14 +15,16 @@ module.exports = async (req, res) => {
   }
 
   let browser = null;
-  console.log("Iniciando o navegador Puppeteer...");
+  console.log("Iniciando o navegador com @sparticuz/chromium...");
 
   try {
-    // Configurações para o Puppeteer rodar no ambiente da Vercel
+    // Nova configuração para o Puppeteer, usando a biblioteca @sparticuz/chromium
     browser = await puppeteer.launch({
-      args: chrome.args,
-      executablePath: await chrome.executablePath,
-      headless: chrome.headless,
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
@@ -34,19 +36,16 @@ module.exports = async (req, res) => {
     await page.type('#senha', skoob_pass);
 
     console.log("Submetendo o formulário...");
-    // Clica no botão e espera a navegação para a próxima página
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'networkidle2' }),
       page.click('#login-form > div:nth-child(4) > button'),
     ]);
 
-    // Verifica se o login foi bem-sucedido
     if (page.url().includes('login')) {
       throw new Error('Login falhou. Verifique as credenciais.');
     }
     console.log("Login bem-sucedido!");
 
-    // Obtém os cookies
     const cookies = await page.cookies();
     const skoobCookie = cookies.find(c => c.name === 'CakeCookie[Skoob]');
     
@@ -54,7 +53,6 @@ module.exports = async (req, res) => {
         throw new Error('Cookie de sessão do Skoob não encontrado.');
     }
 
-    // Decodifica o cookie para extrair o ID do utilizador
     const decodedCookie = decodeURIComponent(skoobCookie.value);
     const cookieJson = JSON.parse(decodedCookie);
     const userId = cookieJson.usuario?.id;
@@ -64,7 +62,6 @@ module.exports = async (req, res) => {
     }
     console.log("Cookies e ID de utilizador extraídos com sucesso.");
 
-    // Envia a resposta de sucesso
     res.status(200).json({
       status: 'success',
       cookies: cookies.reduce((acc, c) => ({ ...acc, [c.name]: c.value }), {}),
@@ -72,7 +69,7 @@ module.exports = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Erro durante a automação:", error);
+    console.error("Erro durante a automação:", error.message);
     res.status(500).json({ status: 'error', message: error.message });
   } finally {
     if (browser !== null) {
