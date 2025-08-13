@@ -17,7 +17,6 @@ app.post('/api/login', async (req, res) => {
   console.log("Iniciando o navegador Puppeteer no Render...");
 
   try {
-    // No Render, podemos usar a versão completa do Puppeteer
     browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -26,6 +25,12 @@ app.post('/api/login', async (req, res) => {
     const page = await browser.newPage();
     console.log("Navegando para a página de login do Skoob...");
     await page.goto('https://www.skoob.com.br/login/', { waitUntil: 'networkidle2' });
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // Espera explicitamente que o campo de email esteja visível na página
+    // por até 30 segundos antes de continuar.
+    console.log("Aguardando o formulário de login ficar visível...");
+    await page.waitForSelector('#email', { visible: true, timeout: 30000 });
 
     console.log("Preenchendo credenciais...");
     await page.type('#email', skoob_user);
