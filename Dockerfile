@@ -1,7 +1,9 @@
 # Usa uma imagem base do Node.js
 FROM node:18-slim
 
-# Instala as dependências de sistema necessárias para o Puppeteer/Chromium
+# --- INÍCIO DA CORREÇÃO ---
+# Instala TODAS as dependências de sistema necessárias para o Puppeteer/Chromium
+# Esta lista é mais completa e inclui a 'libxdmcp6' (que fornece libxdm.so.2)
 RUN apt-get update \
     && apt-get install -y \
     gconf-service \
@@ -42,7 +44,10 @@ RUN apt-get update \
     lsb-release \
     xdg-utils \
     wget \
-    --no-install-recommends
+    libxdmcp6 \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+# --- FIM DA CORREÇÃO ---
 
 # Define o diretório de trabalho
 WORKDIR /usr/src/app
