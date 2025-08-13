@@ -311,7 +311,7 @@ app.get('/health', (req, res) => {
 });
 
 // Rota principal de login
-app.post('/login', async (req, res) => {
+app.post('/api/login', async (req, res) => {
     console.log('📧 Iniciando login para:', req.body.email);
     
     try {
