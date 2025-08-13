@@ -1,5 +1,5 @@
-# Usa uma imagem base do Node.js
-FROM node:18-slim
+# Usa uma imagem base do Node.js mais completa (Bullseye)
+FROM node:18-bullseye
 
 # --- INÍCIO DA CORREÇÃO ---
 # Instala a lista COMPLETA e oficial de dependências de sistema para o Puppeteer
@@ -56,7 +56,8 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Instala as dependências do Node.js
-RUN npm install
+# Usamos --no-cache para garantir uma instalação limpa
+RUN npm install --no-cache
 
 # Copia o resto do código da aplicação
 COPY . .
