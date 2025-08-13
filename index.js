@@ -96,74 +96,77 @@
 const express = require('express');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const { executablePath } = require('puppeteer');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 
 const PORT = process.env.PORT || 10000;
-const REQUEST_TIMEOUT = 90000; // 90 segundos
-const MAX_RETRIES = 2;
 
-// Ativa o plugin stealth
+// Configuração do stealth
 puppeteer.use(StealthPlugin());
 
-// Configurações otimizadas para Render
-const getBrowserConfig = () => ({
-    headless: 'new', // Usa o novo modo headless
-    args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
-        '--disable-ipc-flooding-protection',
-        '--window-size=1280,720'
-    ],
-    executablePath: process.env.NODE_ENV === 'production' ? executablePath() : undefined,
-    timeout: REQUEST_TIMEOUT
+console.log('🚀 Iniciando serviço de login Skoob...');
+
+// Health check
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'online', 
+        service: 'Skoob Login Service',
+        version: '2.0',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
-// Função para delay humano
-const humanDelay = (min = 100, max = 300) => 
-    new Promise(resolve => setTimeout(resolve, Math.random() * (max - min) + min));
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'healthy', 
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        timestamp: new Date().toISOString()
+    });
+});
 
-// Função principal de login com retry
-async function performLogin(skoobUser, skoobPass, attempt = 1) {
+async function performLogin(skoobUser, skoobPass) {
     let browser = null;
-    let page = null;
     
-    console.log(`🔄 Tentativa ${attempt}/${MAX_RETRIES} - Iniciando login para: ${skoobUser}`);
+    console.log(`🔄 Iniciando login para: ${skoobUser}`);
     
     try {
-        // Lança o browser
-        browser = await puppeteer.launch(getBrowserConfig());
-        page = await browser.newPage();
-        
-        // Configurações da página
-        await page.setDefaultNavigationTimeout(REQUEST_TIMEOUT);
-        await page.setDefaultTimeout(REQUEST_TIMEOUT);
-        
-        // User agent mais atualizado
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        
-        // Headers extras para parecer mais humano
-        await page.setExtraHTTPHeaders({
-            'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+        // Configuração otimizada para Render
+        browser = await puppeteer.launch({
+            headless: 'new',
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-extensions',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--window-size=1280,720',
+                '--single-process', // Importante para Render
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
+            ],
+            timeout: 60000
         });
 
-        // Intercepta e bloqueia recursos desnecessários para velocidade
+        const page = await browser.newPage();
+        
+        await page.setDefaultNavigationTimeout(60000);
+        await page.setDefaultTimeout(60000);
+        
+        // User agent simples
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        
+        // Otimização: bloqueia recursos pesados
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const resourceType = req.resourceType();
@@ -177,71 +180,50 @@ async function performLogin(skoobUser, skoobPass, attempt = 1) {
         console.log('🌐 Navegando para página de login...');
         await page.goto('https://www.skoob.com.br/login/', { 
             waitUntil: 'domcontentloaded',
-            timeout: REQUEST_TIMEOUT 
+            timeout: 60000 
         });
 
-        // Aguarda o formulário aparecer
-        console.log('⏳ Aguardando formulário de login...');
-        await page.waitForSelector('#email', { 
-            visible: true, 
-            timeout: 30000 
-        });
+        // Aguarda elementos do formulário
+        console.log('⏳ Aguardando formulário...');
+        await page.waitForSelector('#email', { visible: true, timeout: 30000 });
 
-        // Delay antes de começar a digitar
-        await humanDelay(500, 1000);
-
-        // Limpa e preenche email
+        // Preenche credenciais
         console.log('✏️ Preenchendo credenciais...');
-        await page.click('#email', { clickCount: 3 });
-        await page.type('#email', skoobUser, { delay: 80 });
-        
-        await humanDelay(200, 500);
-        
-        // Limpa e preenche senha
-        await page.click('#senha', { clickCount: 3 });
-        await page.type('#senha', skoobPass, { delay: 90 });
+        await page.type('#email', skoobUser, { delay: 50 });
+        await page.waitForTimeout(500);
+        await page.type('#senha', skoobPass, { delay: 50 });
+        await page.waitForTimeout(500);
 
-        await humanDelay(300, 700);
-
-        console.log('🚀 Submetendo formulário...');
+        console.log('🚀 Fazendo login...');
         
-        // Clica no botão de login e aguarda navegação
-        const loginButton = await page.$('#login-form > div:nth-child(4) > button');
-        if (!loginButton) {
-            throw new Error('Botão de login não encontrado');
-        }
-
-        // Submete o formulário
+        // Submit do formulário
         await Promise.all([
             page.waitForNavigation({ 
                 waitUntil: 'domcontentloaded', 
-                timeout: REQUEST_TIMEOUT 
+                timeout: 60000 
             }),
-            loginButton.click()
+            page.click('#login-form > div:nth-child(4) > button')
         ]);
 
-        // Verifica se ainda está na página de login (indica falha)
+        // Verifica sucesso do login
         const currentUrl = page.url();
-        console.log(`📍 URL atual após login: ${currentUrl}`);
+        console.log(`📍 URL atual: ${currentUrl}`);
         
-        if (currentUrl.includes('login') || currentUrl.includes('erro')) {
-            throw new Error('Credenciais inválidas ou login bloqueado');
+        if (currentUrl.includes('login')) {
+            throw new Error('Login falhou - credenciais inválidas');
         }
 
         console.log('✅ Login realizado com sucesso!');
 
         // Extrai cookies
         const cookies = await page.cookies();
-        console.log(`🍪 Extraídos ${cookies.length} cookies`);
-
-        // Encontra o cookie principal do Skoob
         const skoobCookie = cookies.find(c => c.name === 'CakeCookie[Skoob]');
         
         if (!skoobCookie) {
-            throw new Error('Cookie de sessão do Skoob não encontrado após login');
+            throw new Error('Cookie de sessão não encontrado');
         }
 
-        // Decodifica o cookie para extrair user_id
+        // Extrai user ID
         let userId = null;
         try {
             const decodedCookie = decodeURIComponent(skoobCookie.value);
@@ -249,22 +231,19 @@ async function performLogin(skoobUser, skoobPass, attempt = 1) {
             userId = cookieJson.usuario?.id;
             
             if (!userId) {
-                throw new Error('ID de usuário não encontrado no cookie');
+                throw new Error('ID do usuário não encontrado');
             }
-            
-            console.log(`👤 ID do usuário extraído: ${userId}`);
-        } catch (parseError) {
-            console.error('Erro ao decodificar cookie:', parseError.message);
-            throw new Error('Não foi possível extrair ID do usuário do cookie');
+        } catch (e) {
+            throw new Error('Erro ao processar cookie de sessão');
         }
 
-        // Converte cookies para formato objeto
+        // Converte cookies para objeto
         const cookieObject = cookies.reduce((acc, cookie) => {
             acc[cookie.name] = cookie.value;
             return acc;
         }, {});
 
-        console.log('🎉 Login concluído com sucesso!');
+        console.log(`🎉 Login concluído! User ID: ${userId}`);
 
         return {
             status: 'success',
@@ -274,91 +253,41 @@ async function performLogin(skoobUser, skoobPass, attempt = 1) {
         };
 
     } catch (error) {
-        console.error(`❌ Erro na tentativa ${attempt}:`, error.message);
-        
-        // Se não é a última tentativa, tenta novamente
-        if (attempt < MAX_RETRIES) {
-            const retryDelay = attempt * 2000; // Delay progressivo
-            console.log(`⏰ Aguardando ${retryDelay}ms antes da próxima tentativa...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            
-            return performLogin(skoobUser, skoobPass, attempt + 1);
-        }
-        
-        // Última tentativa falhou
-        throw new Error(`Login falhou após ${MAX_RETRIES} tentativas: ${error.message}`);
-        
+        console.error(`❌ Erro no login: ${error.message}`);
+        throw error;
     } finally {
-        // Sempre fecha o browser
         if (browser) {
             try {
                 await browser.close();
                 console.log('🔒 Browser fechado');
-            } catch (closeError) {
-                console.error('Erro ao fechar browser:', closeError.message);
+            } catch (e) {
+                console.error('Erro ao fechar browser:', e.message);
             }
         }
     }
 }
 
-// Middleware de logging
-app.use((req, res, next) => {
-    console.log(`📝 ${new Date().toISOString()} - ${req.method} ${req.path}`);
-    next();
-});
-
-// Health check
-app.get('/', (req, res) => {
-    res.json({ 
-        status: 'online', 
-        service: 'Skoob Login Service',
-        version: '2.0',
-        timestamp: new Date().toISOString()
-    });
-});
-
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'healthy', 
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Endpoint principal de login
+// Endpoint principal
 app.post('/api/login', async (req, res) => {
     const startTime = Date.now();
     
     try {
         const { skoob_user, skoob_pass } = req.body;
 
-        // Validação dos dados
         if (!skoob_user || !skoob_pass) {
-            console.log('❌ Dados de login ausentes');
             return res.status(400).json({
                 status: 'error',
                 message: 'skoob_user e skoob_pass são obrigatórios'
             });
         }
 
-        if (skoob_user.length < 3 || skoob_pass.length < 3) {
-            console.log('❌ Credenciais muito curtas');
-            return res.status(400).json({
-                status: 'error',
-                message: 'Credenciais inválidas'
-            });
-        }
-
-        console.log('🎯 Iniciando processo de login...');
+        console.log('🎯 Processando login...');
         
-        // Executa o login
         const result = await performLogin(skoob_user, skoob_pass);
         
         const duration = Date.now() - startTime;
-        console.log(`⚡ Login concluído em ${duration}ms`);
+        console.log(`⚡ Concluído em ${duration}ms`);
         
-        // Retorna resultado de sucesso
         res.status(200).json({
             ...result,
             duration_ms: duration
@@ -366,15 +295,12 @@ app.post('/api/login', async (req, res) => {
 
     } catch (error) {
         const duration = Date.now() - startTime;
-        console.error(`💥 Erro após ${duration}ms:`, error.message);
+        console.error(`💥 Erro após ${duration}ms: ${error.message}`);
         
-        // Determina o código de status baseado no erro
         let statusCode = 500;
-        if (error.message.includes('Credenciais inválidas') || 
-            error.message.includes('login bloqueado')) {
+        if (error.message.includes('credenciais inválidas')) {
             statusCode = 401;
-        } else if (error.message.includes('timeout') || 
-                   error.message.includes('navegação')) {
+        } else if (error.message.includes('timeout')) {
             statusCode = 408;
         }
         
@@ -386,7 +312,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Middleware de tratamento de erros global
+// Middleware de erro
 app.use((error, req, res, next) => {
     console.error('💥 Erro não tratado:', error);
     res.status(500).json({
@@ -397,19 +323,20 @@ app.use((error, req, res, next) => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('📴 Recebido SIGTERM, desligando graciosamente...');
+    console.log('📴 SIGTERM recebido, desligando...');
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
-    console.log('📴 Recebido SIGINT, desligando graciosamente...');
+    console.log('📴 SIGINT recebido, desligando...');
     process.exit(0);
 });
 
-// Inicia o servidor
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Serviço de login rodando na porta ${PORT}`);
+// Inicia servidor
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Serviço rodando na porta ${PORT}`);
     console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`⚡ Timeout configurado: ${REQUEST_TIMEOUT}ms`);
-    console.log(`🔄 Máximo de tentativas: ${MAX_RETRIES}`);
 });
+
+// Timeout do servidor
+server.timeout = 120000; // 2 minutos
