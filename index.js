@@ -14,21 +14,22 @@ app.post('/api/login', async (req, res) => {
   }
 
   let browser = null;
+  let page = null; // Definimos a página aqui para que esteja acessível no bloco 'catch'
   console.log("Iniciando o navegador Puppeteer no Render...");
 
   try {
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
     });
 
-    const page = await browser.newPage();
+    page = await browser.newPage();
+    // Aumenta o tempo limite padrão da página para 60 segundos
+    await page.setDefaultNavigationTimeout(60000);
+
     console.log("Navegando para a página de login do Skoob...");
     await page.goto('https://www.skoob.com.br/login/', { waitUntil: 'networkidle2' });
 
-    // --- INÍCIO DA CORREÇÃO ---
-    // Espera explicitamente que o campo de email esteja visível na página
-    // por até 30 segundos antes de continuar.
     console.log("Aguardando o formulário de login ficar visível...");
     await page.waitForSelector('#email', { visible: true, timeout: 30000 });
 
@@ -71,6 +72,21 @@ app.post('/api/login', async (req, res) => {
 
   } catch (error) {
     console.error("Erro durante a automação:", error.message);
+    
+    // --- LÓGICA DE SCREENSHOT ---
+    if (page) {
+        console.log("Tirando screenshot da página de erro...");
+        try {
+            const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
+            console.log("--- SCREENSHOT BASE64 INÍCIO ---");
+            console.log(screenshotBuffer); // Imprime a string gigante nos logs
+            console.log("--- SCREENSHOT BASE64 FIM ---");
+        } catch (screenshotError) {
+            console.error("Não foi possível tirar o screenshot:", screenshotError.message);
+        }
+    }
+    // --- FIM DA LÓGICA ---
+
     res.status(500).json({ status: 'error', message: error.message });
   } finally {
     if (browser !== null) {
