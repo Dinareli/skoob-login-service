@@ -1,10 +1,19 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+// --- INÍCIO DA CORREÇÃO ---
+// Usamos o puppeteer-extra em vez do puppeteer normal
+const puppeteer = require('puppeteer-extra');
+// Adicionamos o plugin stealth
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// --- FIM DA CORREÇÃO ---
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
+
+// --- CORREÇÃO ---
+// Ativamos o plugin stealth
+puppeteer.use(StealthPlugin());
 
 app.post('/api/login', async (req, res) => {
   const { skoob_user, skoob_pass } = req.body;
@@ -14,8 +23,7 @@ app.post('/api/login', async (req, res) => {
   }
 
   let browser = null;
-  let page = null; // Definimos a página aqui para que esteja acessível no bloco 'catch'
-  console.log("Iniciando o navegador Puppeteer no Render...");
+  console.log("Iniciando o navegador Puppeteer em modo STEALTH...");
 
   try {
     browser = await puppeteer.launch({
@@ -23,8 +31,7 @@ app.post('/api/login', async (req, res) => {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
     });
 
-    page = await browser.newPage();
-    // Aumenta o tempo limite padrão da página para 60 segundos
+    const page = await browser.newPage();
     await page.setDefaultNavigationTimeout(60000);
 
     console.log("Navegando para a página de login do Skoob...");
@@ -72,21 +79,6 @@ app.post('/api/login', async (req, res) => {
 
   } catch (error) {
     console.error("Erro durante a automação:", error.message);
-    
-    // --- LÓGICA DE SCREENSHOT ---
-    if (page) {
-        console.log("Tirando screenshot da página de erro...");
-        try {
-            const screenshotBuffer = await page.screenshot({ encoding: 'base64' });
-            console.log("--- SCREENSHOT BASE64 INÍCIO ---");
-            console.log(screenshotBuffer); // Imprime a string gigante nos logs
-            console.log("--- SCREENSHOT BASE64 FIM ---");
-        } catch (screenshotError) {
-            console.error("Não foi possível tirar o screenshot:", screenshotError.message);
-        }
-    }
-    // --- FIM DA LÓGICA ---
-
     res.status(500).json({ status: 'error', message: error.message });
   } finally {
     if (browser !== null) {
